@@ -9,6 +9,7 @@ RUN pip install -r /opt/requirements.txt
 
 COPY .env .env
 ENV PYTHONPATH "/:/app"
+ENV PYTHONUNBUFFERED 1
 WORKDIR /app
 COPY entrypoint.sh /
 COPY . .

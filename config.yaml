@@ -1,0 +1,42 @@
+#viewer_url: "http://localhost:3001"
+
+zarr_stores:
+  - id: s5p_daily_aut
+    name: "S5P Daily Austria 10km"
+    url: "https://dev.hda.eodchosting.eu/collections/SENTINEL5P/s5p-daily-aut-10km.zarr"
+
+  - id: inca
+    name: "INCA"
+    url: "https://dev.hda.eodchosting.eu/collections/INCA/INCA.zarr"
+
+  - id: spartacus
+    name: "SPARTACUS"
+    url: "https://dev.hda.eodchosting.eu/collections/SPARTACUS/SPARTACUS.zarr"
+    
+  - id: s2_l2a
+    name: "S2 L2A C1"
+    url_template: "https://dev.hda.eodchosting.eu/collections/s2-l2a-c1/{tile}/{resolution}"
+    resolutions:
+      - "10"
+      - "20"
+    tiles:
+      - T32TNS
+      - T32TNT
+      - T32TPS
+      - T32TPT
+      - T32TQS
+      - T32TQT
+      - T32UQU
+      - T33TUN
+      - T33TVM
+      - T33TVN
+      - T33TWM
+      - T33TWN
+      - T33TXN
+      - T33UUP
+      - T33UVP
+      - T33UVQ
+      - T33UWP
+      - T33UWQ
+      - T33UXP
+      - T33UXQ

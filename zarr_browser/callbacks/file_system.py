@@ -1,155 +1,194 @@
-""" callbacks for screening root_dir and show tree"""
+""" callbacks for remote zarr store navigation """
 
-import os
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 
-from pathlib import Path
 from zarr_browser.server import app
-from dash import html
-import dash_bootstrap_components as dbc
-from dash import dcc
+from zarr_browser.store_config import load_stores, get_store, resolve_store_url
+from dash import html, dcc
+from dash_iconify import DashIconify
+from functools import lru_cache
+import json
+import requests
+import xarray
 
 
-def list_directory_contents(path):
-    """
-    List the contents of a directory, separating them into directories and files.
+def _remote_icon():
+    return DashIconify(icon="mdi:cloud-outline", color="#D9C991", width=15)
 
-    Args:
-        path (str): The path to the directory.
+def _tile_icon():
+    return DashIconify(icon="mdi:map-marker-outline", width=14, color="#A89154")
 
-    Returns:
-        tuple: A tuple containing two lists:
-            - dirs (list): Sorted list of directories in the specified path.
-            - files (list): Sorted list of files in the specified path.
+def _group_icon():
+    return DashIconify(icon="mdi:folder-table-outline", width=14, color="#169EB0")
 
-    Raises:
-        PermissionError: If the directory cannot be accessed due to permission issues.
-    """
+
+@lru_cache(maxsize=64)
+def _load_subgroups(store_url):
     try:
-        contents = os.listdir(path)
-        dirs = sorted(
-            [item for item in contents if os.path.isdir(os.path.join(path, item))]
-        )
-        files = sorted(
-            [item for item in contents if os.path.isfile(os.path.join(path, item))]
-        )
-        return dirs, files
-    except PermissionError:
-        return [], []
+        dt = xarray.open_datatree(store_url, engine="zarr")
+        return tuple(sorted(dt.children.keys()))
+    except Exception:
+        pass
+    try:
+        resp = requests.get(store_url.rstrip("/") + "/.zmetadata", timeout=10)
+        resp.raise_for_status()
+        meta = json.loads(resp.text)
+        groups = set()
+        for key in meta.get("metadata", {}).keys():
+            parts = key.strip("/").split("/")
+            if len(parts) >= 2 and parts[-1] in (".zarray", ".zgroup"):
+                groups.add(parts[0])
+        return tuple(sorted(groups))
+    except Exception:
+        return ()
 
 
-def generate_directory_listing(path, open_dirs):
-    """
-    Generate the HTML representation of a directory listing.
-
-    Args:
-        path (str): The path to the directory.
-        open_dirs (list): List of open directories.
-
-    Returns:
-        dbc.Card: A Dash Bootstrap Component card containing the directory listing.
-    """
-    dirs, files = list_directory_contents(path)
-
-    path_parts = path.strip("/").split("/") if path.strip("/") else []
-    current_path = "/"
-
-    # Create directory breadcrumb
-    breadcrumb_links = [dcc.Link("/", href="/")]
-    for part in path_parts:
-        current_path = Path(current_path, part)
-        if len(breadcrumb_links) > 1:
-            breadcrumb_links.append(html.Span(" / "))
-        breadcrumb_links.append(dcc.Link(part, href=str(current_path)))
-
-    # Generate directory list items
-    dir_items = []
-    for dir_name in dirs:
-        full_path = os.path.join(path, dir_name)
-        is_open = full_path in open_dirs
-
-        dir_items.append(
-            html.Li(
-                [
-                    html.Span(
-                        dcc.Link(dir_name, href=full_path),
-                        id={"type": "dir-link", "path": full_path},
-                        style={"cursor": "pointer"},
-                    ),
-                    html.Ul(
-                        id={"type": "dir-content", "path": full_path},
-                        style={"display": "block" if is_open else "none"},
-                    ),
-                ]
-            )
-        )
-
-    # Generate file list items
-    file_items = [
-        html.Li(
-            html.A(
-                file_name,
-                href=str(Path(current_path, file_name)),
-                download=str(Path(current_path, file_name)),
-                style={"color": "black", "text-decoration": "none"},
-            )
-        )
-        for file_name in files
-    ]
-
-    return dbc.Card(
-        [
-            dbc.CardHeader(html.H4("Directory Listing")),
-            html.Div(breadcrumb_links),
-            html.Ul(dir_items + file_items),
-        ]
-    )
+def _parse_path(pathname):
+    """Return (store_id, parts) from a /zarr_store/... pathname."""
+    if not pathname or not pathname.startswith("/zarr_store/"):
+        return None, []
+    parts = pathname[len("/zarr_store/"):].strip("/").split("/")
+    return parts[0], parts[1:]
 
 
 @app.callback(
-    Output("dir-content", "children"),
-    [Input("url", "pathname")],
-    [State("open-dirs", "data")],
-    prevent_initial_call=True,
+    Output("subgroup-store", "data"),
+    Input("url", "pathname"),
+    State("subgroup-store", "data"),
 )
-def toggle_directory(n_clicks, pathname, open_dirs):
-    """
-    Toggle the open/closed state of a directory in the listing.
+def update_subgroup_store(pathname, current_data):
+    store_id, rest = _parse_path(pathname)
+    if not store_id:
+        raise PreventUpdate
 
-    Args:
-        n_clicks (int): Number of times the directory link has been clicked.
-        pathname (str): The current pathname.
-        open_dirs (list): List of currently open directories.
+    store_cfg = get_store(store_id)
+    if not store_cfg:
+        raise PreventUpdate
 
-    Returns:
-        dbc.Card: Updated directory listing.
-    """
-    dir_path = pathname
+    tiles = store_cfg.get("tiles", [])
+    resolutions = store_cfg.get("resolutions", [])
 
-    if dir_path in open_dirs:
-        open_dirs.remove(dir_path)
+    if tiles:
+        tile = rest[0] if rest else None
+        if not tile or tile not in tiles:
+            cache_key = store_id
+            if current_data and current_data.get("cache_key") == cache_key:
+                raise PreventUpdate
+            return {"cache_key": cache_key, "store_id": store_id, "tile": None,
+                    "resolution": None, "subgroups": []}
+
+        if resolutions:
+            resolution = rest[1] if len(rest) > 1 else None
+            if not resolution or resolution not in resolutions:
+                cache_key = f"{store_id}/{tile}"
+                if current_data and current_data.get("cache_key") == cache_key:
+                    raise PreventUpdate
+                return {"cache_key": cache_key, "store_id": store_id, "tile": tile,
+                        "resolution": None, "subgroups": []}
+
+            cache_key = f"{store_id}/{tile}/{resolution}"
+            if current_data and current_data.get("cache_key") == cache_key:
+                raise PreventUpdate
+
+            tile_url = resolve_store_url(store_cfg, tile=tile, resolution=resolution)
+            return {"cache_key": cache_key, "store_id": store_id, "tile": tile,
+                    "resolution": resolution, "subgroups": list(_load_subgroups(tile_url))}
+        else:
+            cache_key = f"{store_id}/{tile}"
+            if current_data and current_data.get("cache_key") == cache_key:
+                raise PreventUpdate
+
+            tile_url = resolve_store_url(store_cfg, tile=tile)
+            return {"cache_key": cache_key, "store_id": store_id, "tile": tile,
+                    "resolution": None, "subgroups": list(_load_subgroups(tile_url))}
     else:
-        open_dirs.append(dir_path)
+        cache_key = store_id
+        if current_data and current_data.get("cache_key") == cache_key:
+            raise PreventUpdate
 
-    return generate_directory_listing(dir_path, open_dirs)
+        store_url = resolve_store_url(store_cfg)
+        return {"cache_key": cache_key, "store_id": store_id, "tile": None,
+                "resolution": None, "subgroups": list(_load_subgroups(store_url))}
 
 
 @app.callback(
     Output("file-system-display", "children"),
-    [Input("url", "pathname")],
-    [State("open-dirs", "data")],
+    Input("subgroup-store", "data"),
+    State("url", "pathname"),
 )
-def display_file_system_page(pathname, open_dirs):
-    """
-    Display the file system page content based on the current pathname.
+def display_file_system_page(subgroup_data, pathname):
+    http_stores = load_stores()
+    active_store_id, rest = _parse_path(pathname)
 
-    Args:
-        pathname (str): The current pathname.
-        open_dirs (list): List of currently open directories.
+    items = []
+    for s in http_stores:
+        is_active = s["id"] == active_store_id
+        tiles = s.get("tiles", [])
 
-    Returns:
-        dbc.Card: Directory listing for the specified pathname.
-    """
-    if pathname == "/" or pathname == "/browse":
-        pathname = os.environ["ROOT_DIR"]
-    return generate_directory_listing(pathname, open_dirs)
+        items.append(html.Li(dcc.Link(
+            [_remote_icon(), " " + s["name"]],
+            href=f"/zarr_store/{s['id']}",
+            className="sidebar-item remote active-store" if is_active else "sidebar-item remote",
+        )))
+
+        if not is_active:
+            continue
+
+        if tiles:
+            resolutions = s.get("resolutions", [])
+            active_tile = rest[0] if rest else None
+            active_res = rest[1] if len(rest) > 1 and resolutions else None
+            active_sg = rest[2] if len(rest) > 2 and resolutions else (rest[1] if len(rest) > 1 else None)
+
+            for tile in tiles:
+                is_active_tile = tile == active_tile
+                items.append(html.Li(dcc.Link(
+                    [_tile_icon(), " " + tile],
+                    href=f"/zarr_store/{s['id']}/{tile}",
+                    className="sidebar-subitem active-subitem" if is_active_tile else "sidebar-subitem",
+                )))
+
+                if not is_active_tile:
+                    continue
+
+                if resolutions:
+                    for res in resolutions:
+                        is_active_res = res == active_res
+                        items.append(html.Li(dcc.Link(
+                            [DashIconify(icon="mdi:magnify", width=14, color="#A89154"), f" {res}m"],
+                            href=f"/zarr_store/{s['id']}/{tile}/{res}",
+                            className="sidebar-subsubitem active-subitem" if is_active_res else "sidebar-subsubitem",
+                        )))
+
+                        if is_active_res and subgroup_data and subgroup_data.get("resolution") == res:
+                            for sg in subgroup_data.get("subgroups", []):
+                                cls = "sidebar-subsubsubitem active-subitem" if sg == active_sg else "sidebar-subsubsubitem"
+                                items.append(html.Li(dcc.Link(
+                                    [_group_icon(), " " + sg],
+                                    href=f"/zarr_store/{s['id']}/{tile}/{res}/{sg}",
+                                    className=cls,
+                                )))
+                else:
+                    if subgroup_data and subgroup_data.get("tile") == tile:
+                        for sg in subgroup_data.get("subgroups", []):
+                            cls = "sidebar-subsubitem active-subitem" if sg == active_sg else "sidebar-subsubitem"
+                            items.append(html.Li(dcc.Link(
+                                [_group_icon(), " " + sg],
+                                href=f"/zarr_store/{s['id']}/{tile}/{sg}",
+                                className=cls,
+                            )))
+        else:
+            active_sg = rest[0] if rest else None
+            for sg in (subgroup_data or {}).get("subgroups", []):
+                cls = "sidebar-subitem active-subitem" if sg == active_sg else "sidebar-subitem"
+                items.append(html.Li(dcc.Link(
+                    [_group_icon(), " " + sg],
+                    href=f"/zarr_store/{s['id']}/{sg}",
+                    className=cls,
+                )))
+
+    return html.Div([
+        html.Div("Zarr Stores", className="sidebar-section-header"),
+        html.Ul(items, style={"padding": 0, "margin": 0, "listStyle": "none"}),
+    ])

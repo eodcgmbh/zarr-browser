@@ -1,0 +1,8 @@
+zarr_stores:
+  - id: s5p_daily_aut
+    name: "S5P Daily Austria 10km"
+    url: "https://your-server.com/path/to/s5p-daily-aut-10km.zarr"
+
+  - id: another_store
+    name: "Another Store"
+    url: "https://other-server.com/path/to/store.zarr"
