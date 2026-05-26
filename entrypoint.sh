@@ -1,5 +1,5 @@
 #!/bin/sh
 
-export $(cat /.env | xargs)
+[ -f /.env ] && export $(cat /.env | xargs)
 
 exec "$@"
