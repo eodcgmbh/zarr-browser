@@ -10,7 +10,6 @@ on:
     inputs:
       release_version:
         description: 'year.month.release'
-        type: string
         required: true
 
 jobs:
