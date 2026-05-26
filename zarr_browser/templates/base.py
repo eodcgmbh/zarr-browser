@@ -9,6 +9,19 @@ def base_layout() -> html.Div:
         dcc.Location(id="url", refresh=False),
         dcc.Store(id="subgroup-store", storage_type="memory"),
 
+        # ── Code modal ────────────────────────────────────────
+        dbc.Modal([
+            dbc.ModalHeader(dbc.ModalTitle([
+                html.Span("Load with xarray", style={"fontFamily": "MarkOT, sans-serif"}),
+            ])),
+            dbc.ModalBody([
+                html.Div([
+                    dcc.Clipboard(target_id="code-block-pre", className="zb-copy-btn"),
+                    html.Pre(id="code-block-pre", className="zb-code-block"),
+                ], style={"position": "relative"}),
+            ]),
+        ], id="code-modal", size="lg", is_open=False),
+
         # ── Navbar ────────────────────────────────────────────
         html.Nav(
             dbc.Container([

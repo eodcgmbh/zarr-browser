@@ -316,6 +316,32 @@ body {
   opacity: 0.12;
 }
 
+/* ── Code modal ──────────────────────────────────────────── */
+.zb-code-block {
+  background: #1a2535;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 1.2rem 1.4rem;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.zb-copy-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  color: var(--eodc-grey);
+  cursor: pointer;
+}
+
+.zb-copy-btn:hover {
+  color: var(--eodc-light-blue);
+}
+
 /* ── Scrollbar ───────────────────────────────────────────── */
 #sidebar::-webkit-scrollbar { width: 5px; }
 #sidebar::-webkit-scrollbar-track { background: var(--eodc-dark-blue); }

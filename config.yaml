@@ -1,21 +1,55 @@
 #viewer_url: "http://localhost:3001"
+stac_url: "https://stac.eodc.eu"
 
 zarr_stores:
   - id: s5p_daily_aut
     name: "S5P Daily Austria 10km"
     url: "https://dev.hda.eodchosting.eu/collections/SENTINEL5P/s5p-daily-aut-10km.zarr"
+    stac-url: "https://stac.eodc.eu/api/v1/collections/SENTINEL5P_DAILY_AUT"
 
   - id: inca
     name: "INCA"
     url: "https://dev.hda.eodchosting.eu/collections/INCA/INCA.zarr"
+    stac-url: "https://stac.eodc.eu/api/v1/collections/incal-hourly"
 
   - id: spartacus
     name: "SPARTACUS"
     url: "https://dev.hda.eodchosting.eu/collections/SPARTACUS/SPARTACUS.zarr"
-    
-  - id: s2_l2a
+    stac-url: "https://stac.eodc.eu/api/v1/collections/spartacus-daily"
+
+  - id: S2_L2A
     name: "S2 L2A C1"
+    url_template: "https://dev.hda.eodchosting.eu/collections/S2-L2A-C1/{tile}/{resolution}"
+    #stac-url: "https://dev.hda.eodchosting.eu/collections/S2_L2A/{tile}/{resolution}/catalog.json"
+    resolutions:
+      - "10"
+      - "20"
+    tiles:
+      - T32TNS
+      - T32TNT
+      - T32TPS
+      - T32TPT
+      - T32TQS
+      - T32TQT
+      - T32UQU
+      - T33TUN
+      - T33TVM
+      - T33TVN
+      - T33TWM
+      - T33TWN
+      - T33TXN
+      - T33UUP
+      - T33UVP
+      - T33UVQ
+      - T33UWP
+      - T33UWQ
+      - T33UXP
+      - T33UXQ
+
+  - id: s2_l2a
+    name: "s2 l2a c1"
     url_template: "https://dev.hda.eodchosting.eu/collections/s2-l2a-c1/{tile}/{resolution}"
+    #stac-url: "https://dev.hda.eodchosting.eu/collections/s2-l2a-c1/{tile}/{resolution}/catalog.json"
     resolutions:
       - "10"
       - "20"

@@ -32,6 +32,14 @@ def resolve_store_url(store_cfg, tile=None, resolution=None):
     return store_cfg.get("url")
 
 
+def get_stac_url():
+    if not CONFIG_PATH.exists():
+        return None
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f) or {}
+    return cfg.get("stac_url")
+
+
 def get_viewer_url():
     if not CONFIG_PATH.exists():
         return None
